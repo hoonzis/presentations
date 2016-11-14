@@ -49,8 +49,15 @@
 
 ---
 
-### Strategies
+### Payoff chart of a stock
+- Buying a stock means direct exposition to it's price move
 
+![callvalue](images/cash_payoff.png)
+
+---
+
+
+### Strategies
 - Traders can buy or sell multiple options in the same time
 - Multiple options bought at the same time make up strategies
 - Example: Call Spread
@@ -61,7 +68,6 @@
 ---
 
 ![callspread](images/callspread.png)
-
 
 ---
 
@@ -109,6 +115,7 @@
 	    Price:float
 	}
 ---
+
 ### Define the Leg
 
 	type LegInfo =
@@ -192,7 +199,7 @@
 
 ---
 
-### What is the actual value of an option
+### What is the current value of an option
 
 How much I can earn if I exercise the option now?
 
@@ -205,7 +212,7 @@ How much I can earn if I exercise the option now?
 ---
 ### What is the payoff of an option
 
-- When calculating the payoff we take into account the price of the option
+We have to take into account the price of the option
 
 
 	let legPayoff leg premium stockPrice =
@@ -240,15 +247,17 @@ How much I can earn if I exercise the option now?
 For each leg in strategy give me a function to get its payoff
 
 
-	let payOffs = strategy.Legs |> Seq.map (fun leg ->
+
+	strategy.Legs |> Seq.map (fun leg ->
 	  let legPricing =
 			  match leg.Pricing with
-                | Some pricing -> pricing
-                | None -> getLegPricing strategy.Stock leg
+	              | Some pricing -> pricing
+	              | None -> getLegPricing strategy.Stock leg
 
 	    let pricedLeg = { leg with Pricing = Some legPricing }
 	    legPayoff pricedLeg.Definition legPricing
 	)
+
 
 ---
 

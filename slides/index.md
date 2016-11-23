@@ -8,6 +8,8 @@
 
 ### Presentations
 
+- [Introduction to options](options-introduction.html)
+- [Options and payoff charts in F#](options-and-payoff-charts.html)
 - [Options pricing](options-pricing.html)
 
 ***

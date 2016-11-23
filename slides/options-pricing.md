@@ -6,462 +6,178 @@
 
 ***
 
-## Options pricing and Payoff charts
+## Options pricing
 
 ---
 
-### Why is this useful to RFQ-hub
+### What affects option price
 
-- Fat finger detection
-- Payoff charts generation
-- Demo mode - reasonable price generation for our sales
-
----
-
-### Call and Put Options
-
-- Call is the right to **buy** the stock for agreed price
-- Put is the right to **sell** the stock for agreed price
-- Option parameters:
-	- Underlying (stock or commodity)
-	- Strike
-	- Expiry
-	- Type (Put/Call)
-	- Style (American/European)
-	- Premium (the price)
+- Call option (right to buy)
+- Current stock price: 100
+- Strike: 110
+- Expires tomorrow
+- What's the probability that the stock will reach 110 tomorrow?
+- If 100%, then what is the faire price?
 
 ---
 
-### Why options
-- Hedging
-- Investing (speculation :))
-- One can get big leverage
-- https://www.bloomberg.com/quote/SX5E:IND
-- http://www.eurexchange.com/exchange-en/products/idx/stx/blc/19068!quotesSingleViewOption?callPut=Call&maturityDate=201703
+### What about the interest rate?
+
+- Call option (right to buy), with strike 110
+- Current underlying price: 100
+- Expiries in 6 months
+- The current interest rate is 10%
+- How does the interest rate affect the option?
 
 ---
 
-### Payoff chart
-- How much we earn when the stock moves up or down
-- Example: Call with strike 45, Premium: 2.5
+### Parameters
 
-![call](images/call.png)
+- All options parameters: strike, expiry, type, style
+- Current underlying price
+- Volatility of the underlying
 
 ---
 
-### Strategies
+### Pricing methods
 
-- Traders can buy or sell multiple options in the same time
-- Multiple options bought at the same time make up strategies
-- Example: Call Spread
-	- Buying a call
-	- Selling a call with higher strike
+- Black Scholes formula
+- Tree based models - binomial or trinomial trees
+- Monte Carlo methods
+- Finite difference methods
 
 
 ---
 
-![callspread](images/callspread.png)
+### Binomial Pricing
 
-
----
-
-### Covered Call
-
-- Strategy built of a cash leg and an option leg
-- I bought the stock at 100 and I want to sell at 120
-- Let's profit a bit and sell a call option with strike 120
-
----
-
-### Payoff of Covered Call
-![callspread](images/coveredcall.png)
-
----
-
+- Construct a tree of possible stock prices
+- The tree will go from now to the expiry
+- We need a way to predict how the stock price moves
 
 ***
 
----
-### Domain model for options and pricing
+### About stock prices
 
 ---
 
-	type OptionKind =
-	    | Call
-	    | Put
+### How do the stocks move in real life
 
-	type OptionStyle =
-	    | American
-	    | European
-
-	type OptionLeg = {
-	        Direction : float
-	        Strike : float
-	        Expiry : DateTime
-	        Kind : OptionKind
-	        Style: OptionStyle
-	        PurchaseDate: DateTime
-	    }
-	    member this.TimeToExpiry = this.Expiry - this.PurchaseDate
-
-	type CashLeg = {
-	    Direction: float
-	    Price:float
-	}
----
-### Define the Leg
-
-	type LegInfo =
-	    | Cash of CashLeg
-	    | Option of OptionLeg
-
-	type Pricing = {
-	    Premium: float
-	}
-
-	type Leg = {
-	    Definition:LegInfo
-	    Pricing:Pricing option
-	}
-
----
-### Strategy - composition of Legs
-
-	type StockInfo = {
-	    Rate:float
-	    Volatility: float
-	    CurrentPrice: float
-	}
-
-	type Strategy = {
-	    Stock : StockInfo
-	    Name : String
-	    Legs: Leg list
-	}
+- Stock price follows a long term direction
+- In the stock oscillates randomly in the short term
+- Stock oscillates randomly in the short term
+- This can be described using Wiener process
 
 ---
 
-### Strategy example, defining the legs
+### Stock's behavior in binomial tree
 
-	let buyingCash = {
-		Definition = Cash {
-			Price = 100.0
-			Direction = 1.0
-		}
-		Pricing = None
-	}
-
-	let sellingCall = {
-        Definition = Option {
-            Direction = -1.0
-            Strike = 120.0
-            Expiry = new DateTime(2017,1,1)
-            Kind = Call
-            Style = European
-            PurchaseDate = DateTime.Now
-        }
-        Pricing = None
-    }
-
-
----
-### Covered Call again - defined in F\#
-
-	let coveredCall = {
-	    Name = "Covered Call"
-	    Legs = [
-	            buyingCash
-	            sellingCall
-	        ]
-	    Stock =
-	        {
-	            CurrentPrice = 100.0
-	            Volatility = 0.20
-	            Rate = 0.01
-	        }
-	}
-
-
-***
-
-### Payoff charts generation
-
-- Let's forget the pricing of options
-- How can we generate the payoff chart of any strategy?
-- Chart is a composition of lines connecting X,Y coordinates
+- Still a stochastic model but much simpler
+- Assume that any time the stock may go up or down
+- Split the time between now and the expiry into discrete steps
+- In each discrete step we will go up or down
 
 ---
 
-### What is the actual value of an option
+### Stock prices tree
 
-How much I can earn if I exercise the option now?
+- Assume constants **u** and **d**
+- Stock in the next step will have either value **S\*u** or **S\*d**
+- To simplify, we can say that **d = 1/u**
+
+TODO add the tree here
+![stock_option_price](images/share_and_derivative_tree.png)
+
+---
+
+### Stock movement in the real world
+
+- Cox, Ross & Rubinstein pricing model
+- We can use the Volatility to obtain **u** and **d**
+
+TODO add the CRR equations
+
+---
+
+### Option price from stock price
+
+- We know how to model the stock, but what about the option?
+- At the expiry the price of the option is simple
+- Before the expiry however it's not that clear
+
 
 	match option.Kind with
 		| Call -> max 0.0 (stockPrice - option.Strike)
 		| Put -> max 0.0 (option.Strike - stockPrice)
 
-![callvalue](images/callvalue.png)
-
----
-### What is the payoff of an option
-
-- When calculating the payoff we take into account the price of the option
-
-
-	let legPayoff leg premium stockPrice =
-		match leg with
-			| Cash cashLeg -> stockPrice - cashLeg.Price
-			| Option optionLeg -> optionValue optionLeg stockPrice - premium
-
-
-![callvalue](images/callvalue.png)
-
----
-### Sampling the data
-- In order to chart the data, we will need to generate X,Y pairs
-- What are the interesting points on X axis?
-
-
-	let strikes = strategy.Legs |> List.map (fun leg ->
-		match leg.Definition with
-			| Cash cashLeg -> cashLeg.Price
-			| Option optionLeg -> optionLeg.Strike
-	)
-	let min = 0.5*(strikes |> Seq.min)
-	let max = 1.5*(strikes |> Seq.max)
-	seq {
-		yield min
-		yield! strikes
-		yield max
-	}
-
----
-### Getting the payoff line per leg
-For each leg in strategy give me a function to get its payoff
-
-
-	let payOffs = strategy.Legs |> Seq.map (fun leg ->
-	  let legPricing =
-			  match leg.Pricing with
-                | Some pricing -> pricing
-                | None -> getLegPricing strategy.Stock leg
-
-	    let pricedLeg = { leg with Pricing = Some legPricing }
-	    legPayoff pricedLeg.Definition legPricing
-	)
-
 ---
 
-### Getting the payoff of the strategy
-Taking the pay-off calculators from previous step
+### Option prices tree
 
-	payOffs |> Seq.map (fun payoff ->
-		[for stockPrice in interestingPoints -> stockPrice, payOff stockPrice]
-	)
-
-
-The total payoff of our portfolio is just the sum
-
-	let strategyLine = [for stockPrice in interestingPoints do yield stockPrice,
-		payOffs |> Seq.sumBy (fun payOff -> payOff stockPrice)
-	]
-
----
-
-### FSharp.Charting
-- Part of [FsLab](http://fslab.org/FSharp.Charting/)
-- F\# wrapper for windows forms charting
-- To draw a line, we just need a list of tuples
-
-	 Chart.Combine(
-	    [ Chart.Line(expectedIncome,Name="Income")
-	      Chart.Line(expectedExpenses,Name="Expenses")
-	      Chart.Line(computedProfit,Name="Profit") ])
-
-
----
-
-![fsharp.charting](images/fsharp.charting.png)
-
----
-
-### Apply charting on the strategy data
-	 let strategyData,legsData = Options.getStrategyData strategy
-	 let strategyLine = Chart.Line(strategyData,Name = strategy.Name)
-	                 |> Chart.WithSeries.Style(Color = Color.Red, BorderWidth = 5)
-
-	 let legsLines = legsData |> Seq.mapi (
-		 fun i legData -> Chart.Line(legData, sprintf "Leg %i" i)
-	 )
-
-	 let allLines = legsLines |> Seq.append [strategyLine]
-
-	 let chart = Chart.Combine allLines |> Chart.WithLegend(true)
----
-### Buying the volatility with Straddle
-
-![straddle](images/straddle.png)
----
-***
-
-### Summary of the first part
-
-- There is no magic here!
-- Very concise domain model
-- F\# makes it very easy to compose functions
-- Extendability - imagine adding a new leg type
-- This is all about data transformation
-
-***
-
-***
-
-### Charting with Fable
-
-- Fable transpiles F# code to JavaScript
-
----
-### NVD3 charting
-
-	let chart =
-		nv.models
-			.lineChart()
-			.useInteractiveGuideline(true)
-			.margin(margin)
-			.showLegend(true)
-			.showXAxis(true)
-			.showYAxis(true)
-			.forceY(range);
-
-	el.datum(data).call(chart);
-
-[LineChart](http://nvd3.org/examples/line.html)
----
-
----
-### NVD3 interface in F#
-Just create a F# interface and the compiler will call its properties or methods by name
-
-
-	type Chart() =
-		abstract xAxis: Axis
-		abstract yAxis: Axis
-		abstract forceY: float array -> Chart
-		abstract showLegend: bool -> Chart
-
-	[<AbstractClass>]
-	type LineChart() = inherit Chart()
-  		with member x.useInteractiveGuideline (value:bool): Chart =
-				failwith "JSOnly"
-
----
-### NVD3 types
-
-
-	type Value = {
-		x: int
-		y: float
-	}
-
-	type Series<'a> = {
-		key: string
-		values: 'a array
-	}
-
----
-
-### Converting data into NVD3 types
-
-	let strategy = {
-		key = "Strategy"
-		values = data.StrategySerie |> Charting.tuplesToPoints
-	}
-
-	let legs =
-		data.LegsSeries |> Seq.map (fun (leg,linedata) ->
-		{
-			key = leg.Definition.Name
-			values = linedata |> Charting.tuplesToPoints
-		})
-
-	seq {
-		yield! legs
-		yield strategy
-	}
-
-***
-
-### Options pricing
-
-- The easiest way is to use Black - Scholes formula
-- American options can't be priced with the BS formula
-- Binomial pricing models to the rescue
-	- Can be used to price American options
-	- Once the framework is built, it can price other derivatives
-
----
-
-### Black & Scholes in F\#
-
-- No presentation about Options Pricing without BS
-- It is just a mathematical formula written in F\#
-
-
-![straddle](images/bsformula.png)
-
----
-
-	let d1 =
-        ( log(stock.CurrentPrice / option.Strike) +
-            (stock.Rate + 0.5 * pown stock.Volatility 2) * option.TimeToExpiry ) /
-        ( stock.Volatility * sqrt option.TimeToExpiry )
-    let d2 = d1 - stock.Volatility * sqrt option.TimeToExpiry
-    let N1 = normal.CumulativeDistribution d1
-    let N2 = normal.CumulativeDistribution d2
-
-    let discountedStrike = option.Strike * exp (-stock.Rate * option.TimeToExpiry)
-    let call = stock.CurrentPrice * N1 - discountedStrike * N2
-    match option.Kind with
-        | Call -> call, N1
-        | Put -> call + discountedStrike - stock.CurrentPrice, N1 - 1.0
-
----
-### Binomial Pricing
-
-- We assume that at any time the stock may go up or down with given probability
-- We take the computer power to construct the tree of all the possible values that the stock can have
-- In the same time maintain a tree of the option values
-- At each node the tree will tell us what the option would be worth
-- We separate the time between now and the expiry of the option into multiple discrete steps
-- The size of the tree depends on how much time we have
-
----
-
-### How exactly does the stock behave
-
-- Assume that there are constants **u** and **d** which symbolize the movements of the stock
-- The stock in the next time step will have value **S\*u** if it goes up or **S\*d** if it goes down.
-
+- We could maintain two trees
+- The last **Pu** and **Pd** can be calculated
+- We need a way to determine **P** from **Pu** and **Pd**
 
 ![stock_option_price](images/share_and_derivative_tree.png)
 
 ---
 
-### Calculating the price of the option
+### Modelling the tree
 
-- What is the price of the option if we know the price in the next two nodes?
-- We need what the option is worth if it moves down and up, can we determine the price now?
-- This was determined by Cox, Ross, & Rubinstein in the [CRR binomial pricing model](https://en.wikipedia.org/wiki/Binomial_options_pricing_model)
+		type BinomialNode = {
+		    Stock: double
+		    Option: double
+		    UpParent: BinomialNode option
+		    DownParent: BinomialNode option
+		}
 
+
+- We know how to model the tree
+- We still don't know how to walk it
+
+---
+
+### Delta Hedging
+
+- Portfolio immune to stock moves
+- Long shares of stock = buy stock
+- Short delta number options = selling options
+- Such Portfolio earns the interest rate
+
+---
+
+### Delta neutral portfolio
+
+---
+
+### One step in the option tree
 
 ![stock_option_price](images/derivative_price.png)
 
 ---
+
+### Merging the nodes
+
+	let mergeNodes downNode upNode context =
+	    let optionValue = (context.PUp * upNode.Option +
+				context.PDown * downNode.Option)
+				*(1.0/context.Rate)
+
+	    let stockValue = upNode.Stock * context.Down
+	    {
+	        Stock = stockValue
+	        Option = optionValue
+	        UpParent = Some upNode
+	        DownParent = Some downNode
+	    }
+
+---
+
 ### Implementation overview
 
-- First we build the end nodes of the tree (values at expiry)
-- Then we will walk the tree back to the root
-- At each node we have the tuple giving us the stock price and the option price
+- Build the end nodes of both trees
+- Walk both trees backwards
+- Calculate the option price from the option prices in previous steps
 
 
 ![pricing_implementation](images/implementation.png)
@@ -533,6 +249,33 @@ Just create a F# interface and the compiler will call its properties or methods 
                 stock',der')
             |> List.ofSeq
 ---
+
+***
+
+### Black & Scholes in F\#
+
+- No presentation about Options Pricing without BS
+- It is just a mathematical formula written in F\#
+
+
+![straddle](images/bsformula.png)
+
+---
+
+	let d1 =
+        ( log(stock.CurrentPrice / option.Strike) +
+            (stock.Rate + 0.5 * pown stock.Volatility 2) * option.TimeToExpiry ) /
+        ( stock.Volatility * sqrt option.TimeToExpiry )
+    let d2 = d1 - stock.Volatility * sqrt option.TimeToExpiry
+    let N1 = normal.CumulativeDistribution d1
+    let N2 = normal.CumulativeDistribution d2
+
+    let discountedStrike = option.Strike * exp (-stock.Rate * option.TimeToExpiry)
+    let call = stock.CurrentPrice * N1 - discountedStrike * N2
+    match option.Kind with
+        | Call -> call, N1
+        | Put -> call + discountedStrike - stock.CurrentPrice, N1 - 1.0
+
 
 ### Summary
 

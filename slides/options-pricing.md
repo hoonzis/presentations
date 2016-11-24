@@ -56,6 +56,30 @@
 
 ***
 
+### Domain model for options and pricing
+
+---
+
+	type OptionKind =
+	    | Call
+	    | Put
+
+	type OptionStyle =
+	    | American
+	    | European
+
+	type OptionLeg = {
+	        Direction : float
+	        Strike : float
+	        Expiry : DateTime
+	        Kind : OptionKind
+	        Style: OptionStyle
+	        PurchaseDate: DateTime
+	    }
+	    member this.TimeToExpiry = this.Expiry - this.PurchaseDate
+---
+***
+
 ### About stock prices
 
 ---
@@ -63,9 +87,10 @@
 ### How do the stocks move in real life
 
 - Stock price follows a long term direction
-- In the stock oscillates randomly in the short term
 - Stock oscillates randomly in the short term
 - This can be described using Wiener process
+
+![stock_move](images/stock-move.png)
 
 ---
 
@@ -84,16 +109,20 @@
 - Stock in the next step will have either value **S\*u** or **S\*d**
 - To simplify, we can say that **d = 1/u**
 
+---
+
+### Stock prices tree
+
 ![stock_tree](images/stock_tree.png)
 
 ---
 
-### Stock movement in the real world
+### Real-world binomial tree
 
 - Cox, Ross & Rubinstein pricing model
 - We can use the Volatility to obtain **u** and **d**
 
-TODO add the CRR equations
+![crr](images/crr-parameters.png)
 
 ---
 
@@ -110,13 +139,18 @@ TODO add the CRR equations
 
 ---
 
-### Option prices tree
+### Introducing options tree
 
 - We could maintain two trees
-- The last **Pu** and **Pd** can be calculated
-- We need a way to determine **P** from **Pu** and **Pd**
+- We can calculate the leafs of the options tree
 
 ![stock_option_price](images/share_and_derivative_tree.png)
+
+---
+
+### Missing piece
+
+![merging-nodes](images/merging-nodes.png)
 
 ---
 
@@ -129,11 +163,15 @@ TODO add the CRR equations
 		    DownParent: BinomialNode option
 		}
 
+---
 
-- We know how to model the tree
-- We still don't know how to walk it
+### Summary so far
+- We know how to model the tree of possible stock prices
+- We know that we can calculate the leafs of options tree
+- We still don't know how to walk the options tree
 
 ---
+***
 
 ### Delta Hedging
 
@@ -150,9 +188,20 @@ TODO add the CRR equations
 
 ---
 
-### One step in the option tree
+### Consequences
 
-![stock_option_price](images/derivative_price.png)
+- Portfolio earns the neutral interest rate
+- It has the keeps the same value
+
+![delta-neutral-consequences](images/delta-neutral-consequences.png)
+
+---
+
+### Option price definition
+
+- Finally an equation to determine option price **P**
+
+![option-price-merge](images/option-price-merge.png)
 
 ---
 
@@ -172,22 +221,26 @@ TODO add the CRR equations
 	    }
 
 ---
+***
 
 ### Implementation overview
 
 - Build the end nodes of both trees
 - Walk both trees backwards
-- Calculate the option price from the option prices in previous steps
+- Calculate option price from previous steps
 
+---
+
+### Implementation overview
 
 ![pricing_implementation](images/implementation.png)
 
 ---
 
-### Generating the stock end-nodes prices
+### Generating the leafs
 
-- We have to start all the way at the expiry, how do we get there?
-- We know that the stock moves up or down with the same probability and we know the depth of the tree
+- All possible prices of the stock at expiry
+- Taking into account the depth
 
 
 	let generateEndNodePrices (ref:float) (up:float) (periods:int) =
@@ -199,58 +252,61 @@ TODO add the CRR equations
 
 ### Determine the option price in end node
 
-- Remember that neat function to get option value at any time assuming we know the stock value?
-
-
 	let optionValue option ref =
         match option.Kind with
                 | Call -> max 0.0 (ref - option.Strike)
                 | Put -> max 0.0 (option.Strike - ref)
 
 ---
+
 ### Single step in derivative tree
 
-- Single step is a simple function which takes the array from the previous step
-- F\# saves us with *pairwise*
 
+	let step pricing optionVal (prices:BinomialNode []) =
+		prices
+      |> Array.pairwise
+      |> Array.map (fun (downNode,upNode) ->
+				mergeNodes downNode upNode pricing
+			)
 
-	let step (optionPrices:float list) (pricing:BinomialPricing) =
-		optionPrices |> Seq.pairwise
-                 |> Seq.map (fun (down,up)-> (pricing.PUp*up+pricing.PDown*down)\*(1.0/pricing.Rate))
-                 |> List.ofSeq
 ---
 ### Reducing the tree to current node
 - We will call this function recursively
-- The arrays is getting smaller until it will have only one element in the root of the tree
+- Reducing the array until it's only 1 element
 
 
-	let rec reducePrices (stockPrice:float list) (pricing:BinomialPricing) =
-	    match stockPrice with
-	            | [single] -> single
-	            | prices -> reducePrices (step prices pricing) pricing
+	let prices = generateLeafs ctx
+
+	let rec reducePrices prices =
+		match prices with
+			| [|node|] -> node.Option, node.UpParent.Value.Option
+			| prs -> reducePrices (reductionStep prs)
 
 ---
 
 ### American options pricing
 
-- For American options we will compare the real option value to the value we get from the derivative tree
-- The real option value is the value of the option if the option would be excercised
+- For American options check for premature exercise
+- If we exercise we can just calculate the payoff
 
 
-	let step pricing optionVal (prices:(float*float) list) =
-        prices
-            |> Seq.pairwise
-            |> Seq.map (fun ((sDown,dDown),(sUp,dUp)) ->
-                let option = (pricing.PUp*dUp+pricing.PDown*dDown)\*(1.0/pricing.Rate)
-                let stock' = sUp*pricing.Down
-                let der' = match pricing.Option.Style with
-                                    | American -> max option (optionVal stock')
-                                    | European -> derValue
-                stock',der')
-            |> List.ofSeq
+	let option' =
+	  match context.Option.Style with
+      | American ->
+          let prematureExValue = optionVal stockValue
+          max derValue prematureExValue
+      | European -> derValue
+
+
 ---
 
 ***
+
+### Intuition for Monte Carlo
+
+---
+
+
 
 ### Black & Scholes in F\#
 
@@ -262,7 +318,7 @@ TODO add the CRR equations
 
 ---
 
-	let d1 =
+		let d1 =
         ( log(stock.CurrentPrice / option.Strike) +
             (stock.Rate + 0.5 * pown stock.Volatility 2) * option.TimeToExpiry ) /
         ( stock.Volatility * sqrt option.TimeToExpiry )
@@ -272,10 +328,10 @@ TODO add the CRR equations
 
     let discountedStrike = option.Strike * exp (-stock.Rate * option.TimeToExpiry)
     let call = stock.CurrentPrice * N1 - discountedStrike * N2
-    match option.Kind with
+
+		match option.Kind with
         | Call -> call, N1
         | Put -> call + discountedStrike - stock.CurrentPrice, N1 - 1.0
-
 
 ### Summary
 

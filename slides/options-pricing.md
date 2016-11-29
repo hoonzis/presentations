@@ -199,7 +199,7 @@
 
 ### Option price definition
 
-- Finally an equation to determine option price **P**
+Finally an equation to determine option price **P**
 
 ![option-price-merge](images/option-price-merge.png)
 
@@ -304,34 +304,55 @@
 
 ### Intuition for Monte Carlo
 
+- Describe the stock movement (using drift and volatility)
+- Generate multiple stock random paths
+
+
+![stock_move](images/stock-move.png)
+
+
+---
+
+
+### Intuition for Monte Carlo 2
+
+- Take the "average" value during the stock's random path
+- Calculate the option price for the value
+- Take "average" option price
+
+
 ---
 
 
 
 ### Black & Scholes in F\#
 
-- No presentation about Options Pricing without BS
-- It is just a mathematical formula written in F\#
-
+No presentation about Options Pricing is complete without BS
 
 ![straddle](images/bsformula.png)
 
 ---
 
-		let d1 =
-        ( log(stock.CurrentPrice / option.Strike) +
-            (stock.Rate + 0.5 * pown stock.Volatility 2) * option.TimeToExpiry ) /
-        ( stock.Volatility * sqrt option.TimeToExpiry )
-    let d2 = d1 - stock.Volatility * sqrt option.TimeToExpiry
-    let N1 = normal.CumulativeDistribution d1
-    let N2 = normal.CumulativeDistribution d2
+### BS in F#
 
-    let discountedStrike = option.Strike * exp (-stock.Rate * option.TimeToExpiry)
-    let call = stock.CurrentPrice * N1 - discountedStrike * N2
 
-		match option.Kind with
-        | Call -> call, N1
-        | Put -> call + discountedStrike - stock.CurrentPrice, N1 - 1.0
+
+	let d1 =
+      (log(stock.CurrentPrice / option.Strike) +
+          (stock.Rate + 0.5 * pown stock.Vol 2) * option.ToExpiry ) /
+      (stock.Volatility * sqrt option.ToExpiry )
+	let d2 = d1 - stock.Vol * sqrt option.ToExpiry
+	let N1 = cdf d1
+	let N2 = cdf d2
+	let discStrike = option.Strike * exp (-stock.Rate * option.ToExpiry)
+	let call = stock.CurrentPrice * N1 - discStrike * N2
+	match option.Kind with
+	    | Call -> call, N1
+	    | Put -> call + discStrike - stock.CurrentPrice, N1 - 1.0
+
+
+
+---
 
 ### Summary
 
